@@ -438,10 +438,16 @@ antlrcpp::Any TypeCheckVisitor::visitUnari(AslParser::UnariContext *ctx)
 
   std::string oper = ctx->op->getText();
   if (not Types.isErrorTy(t) and not Types.isBooleanTy(t) and ctx->NOT())
+  {
     Errors.incompatibleOperator(ctx->op);
+    t = Types.createErrorTy();
+  }
   if (not Types.isErrorTy(t) and not Types.isNumericTy(t) and
-      (ctx->PLUS() or ctx->PLUS()))
+      (ctx->PLUS() or ctx->MINUS()))
+  {
     Errors.incompatibleOperator(ctx->op);
+    t = Types.createErrorTy();
+  }
 
   putTypeDecor(ctx, t);
   bool b = getIsLValueDecor(ctx->expr());
@@ -560,7 +566,7 @@ antlrcpp::Any TypeCheckVisitor::visitFun_call(AslParser::Fun_callContext *ctx)
     else
       for (int i = 0; i < t_param.size(); ++i)
       {
-        if (not Types.equalTypes(t_param[i], getTypeDecor(ctx->expr(i))))
+        if (not Types.equalTypes(t_param[i], getTypeDecor(ctx->expr(i))) and not Types.isErrorTy(getTypeDecor(ctx->expr(i))))
           Errors.incompatibleParameter(ctx->expr(i), i + 1, ctx);
       }
 
