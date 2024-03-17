@@ -197,8 +197,17 @@ TypeCheckVisitor::visitAssignStmt(AslParser::AssignStmtContext *ctx)
   TypesMgr::TypeId t1 = getTypeDecor(ctx->left_expr());
   TypesMgr::TypeId t2 = getTypeDecor(ctx->expr());
 
-  if ((not Types.isErrorTy(t1)) and (not Types.isErrorTy(t2)) and
-      (not Types.copyableTypes(t1, t2)))
+  if (Types.isArrayTy(t1) and Types.isArrayTy(t2))
+  {
+    TypesMgr::TypeId t1_elem = Types.getArrayElemType(t1);
+    TypesMgr::TypeId t2_elem = Types.getArrayElemType(t2);
+    if (not Types.equalTypes(t1_elem, t2_elem) or Types.getArraySize(t1) != Types.getArraySize(t2))
+    {
+      Errors.incompatibleAssignment(ctx->ASSIGN());
+    }
+  }
+  else if ((not Types.isErrorTy(t1)) and (not Types.isErrorTy(t2)) and
+           (not Types.copyableTypes(t1, t2)))
     Errors.incompatibleAssignment(ctx->ASSIGN());
 
   if ((not Types.isErrorTy(t1)) and (not getIsLValueDecor(ctx->left_expr())))
@@ -323,8 +332,15 @@ TypeCheckVisitor::visitArithmetic(AslParser::ArithmeticContext *ctx)
   visit(ctx->expr(1));
   TypesMgr::TypeId t2 = getTypeDecor(ctx->expr(1));
 
-  if (((not Types.isErrorTy(t1)) and (not Types.isNumericTy(t1))) or
-      ((not Types.isErrorTy(t2)) and (not Types.isNumericTy(t2))))
+  if (ctx->MOD())
+  {
+    if ((not Types.isErrorTy(t1)) and (not Types.isIntegerTy(t1)))
+      Errors.incompatibleOperator(ctx->op);
+    if ((not Types.isErrorTy(t2)) and (not Types.isIntegerTy(t2)))
+      Errors.incompatibleOperator(ctx->op);
+  }
+  else if (((not Types.isErrorTy(t1)) and (not Types.isNumericTy(t1))) or
+           ((not Types.isErrorTy(t2)) and (not Types.isNumericTy(t2))))
     Errors.incompatibleOperator(ctx->op);
 
   TypesMgr::TypeId t;
@@ -562,11 +578,11 @@ antlrcpp::Any TypeCheckVisitor::visitFun_call(AslParser::Fun_callContext *ctx)
   {
     auto t_param = Types.getFuncParamsTypes(t_fun);
     if (ctx->expr().size() != t_param.size())
-      Errors.isNotFunction(ctx);
+      Errors.numberOfParameters(ctx);
     else
       for (int i = 0; i < t_param.size(); ++i)
       {
-        if (not Types.equalTypes(t_param[i], getTypeDecor(ctx->expr(i))) and not Types.isErrorTy(getTypeDecor(ctx->expr(i))))
+        if (not Types.copyableTypes(t_param[i], getTypeDecor(ctx->expr(i))) and not Types.isErrorTy(getTypeDecor(ctx->expr(i))))
           Errors.incompatibleParameter(ctx->expr(i), i + 1, ctx);
       }
 
