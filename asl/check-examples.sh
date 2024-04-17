@@ -1,12 +1,12 @@
 #!/bin/bash
 
-export LD_LIBRARY_PATH=$HOME/assig/cl/runtime/lib
+# export LD_LIBRARY_PATH=$HOME/assig/cl/runtime/lib
+export LD_LIBRARY_PATH=/usr/local/lib/
 
 #--------------------------------------------
 function check_chkt_example() {
     expected=$1
     produced=$2
-    
     diff $expected $produced >tmp.diff
     if (test $? == 0); then
 	echo "OK"
