@@ -38,3 +38,6 @@ Asl*.cpp
 Asl*.h
 asl
 _antlr
+
+# llvm
+*.ll

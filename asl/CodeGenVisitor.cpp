@@ -198,8 +198,15 @@ antlrcpp::Any CodeGenVisitor::visitWriteExpr(AslParser::WriteExprContext *ctx) {
   // std::string         offs1 = codAt1.offs;
   instructionList &code1 = codAt1.code;
   instructionList &code = code1;
-  // TypesMgr::TypeId tid1 = getTypeDecor(ctx->expr());
-  code = code1 || instruction::WRITEI(addr1);
+  TypesMgr::TypeId tid1 = getTypeDecor(ctx->expr());
+  if (Types.isIntegerTy(tid1))
+    code = code1 || instruction::WRITEI(addr1);
+  else if (Types.isFloatTy(tid1))
+    code = code1 || instruction::WRITEF(addr1);
+  else if (Types.isCharacterTy(tid1))
+    code = code1 || instruction::WRITEC(addr1);
+  else if (Types.isBooleanTy(tid1))
+    code = code1 || instruction::WRITEI(addr1);
   DEBUG_EXIT();
   return code;
 }
@@ -209,7 +216,26 @@ CodeGenVisitor::visitWriteString(AslParser::WriteStringContext *ctx) {
   DEBUG_ENTER();
   instructionList code;
   std::string s = ctx->STRING()->getText();
-  code = code || instruction::WRITES(s);
+  int begin = 1;
+  std::string lit;
+  if (s == "\"\\n\"")
+    code = code || instruction::WRITELN();
+  else
+    FALTA("imprir string que no tinguin \\n per mig");
+
+  // for (int i = 1; i < s.size() - 1; ++i) {
+  //   if (s[i] == 'n' && s[i + 1] == '\\') {
+  //     if (begin != i) {
+  //       lit = "\"" + s.substr(begin, i - 1) + "\"";
+  //       code = code || instruction::WRITES(lit);
+  //       LOG(lit);
+  //     }
+  //     code = code || instruction::WRITELN();
+  //     i++;
+  //     begin = i + 2;
+  //   }
+  // }
+
   DEBUG_EXIT();
   return code;
 }
@@ -280,13 +306,13 @@ CodeGenVisitor::visitArithmetic(AslParser::ArithmeticContext *ctx) {
       temp2 = addr2;
 
     if (ctx->MUL())
-      code = code || instruction::FMUL(temp, addr1, addr2);
+      code = code || instruction::FMUL(temp, temp1, temp2);
     else if (ctx->DIV())
-      code = code || instruction::FDIV(temp, addr1, addr2);
+      code = code || instruction::FDIV(temp, temp1, temp2);
     else if (ctx->PLUS())
-      code = code || instruction::FADD(temp, addr1, addr2);
+      code = code || instruction::FADD(temp, temp1, temp2);
     else if (ctx->MINUS())
-      code = code || instruction::FSUB(temp, addr1, addr2);
+      code = code || instruction::FSUB(temp, temp1, temp2);
 
   } else {
     if (ctx->MUL())
