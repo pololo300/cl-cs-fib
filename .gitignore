@@ -34,9 +34,9 @@
 # Build files
 *.interp
 *.tokens
-Asl*.cpp
-Asl*.h
-asl
+asl/Asl*.cpp
+asl/Asl*.h
+asl/asl
 _antlr
 
 # llvm
