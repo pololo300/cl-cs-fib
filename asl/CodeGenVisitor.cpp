@@ -151,19 +151,29 @@ CodeGenVisitor::visitAssignStmt(AslParser::AssignStmtContext *ctx) {
 antlrcpp::Any CodeGenVisitor::visitIfStmt(AslParser::IfStmtContext *ctx) {
   DEBUG_ENTER();
   instructionList code;
-  CodeAttribs &&codAtsE = visit(ctx->expr());
-  std::string addr1 = codAtsE.addr;
-  instructionList &code1 = codAtsE.code;
-  //
-  //
-  // FALTA POSAR EL ELSE
-  //
-  //
-  instructionList &&code2 = visit(ctx->statements(0));
-  std::string label = codeCounters.newLabelIF();
-  std::string labelEndIf = "endif" + label;
-  code = code1 || instruction::FJUMP(addr1, labelEndIf) || code2 ||
-         instruction::LABEL(labelEndIf);
+  CodeAttribs &&expr = visit(ctx->expr());
+  instructionList body = visit(ctx->statements(0));
+
+  std::string s = codeCounters.newLabelIF();
+  std::string elseLbl = "else" + s;
+  std::string endifLbl = "endif" + s;
+
+  if (ctx->ELSE()) {
+    instructionList elsebody = visit(ctx->statements(1));
+    code = code || expr.code;
+    code = code || instruction::FJUMP(expr.addr, elseLbl);
+    code = code || body;
+    code = code || instruction::UJUMP(endifLbl);
+    code = code || instruction::LABEL(elseLbl);
+    code = code || elsebody;
+    code = code || instruction::LABEL(endifLbl);
+  } else {
+    code = code || expr.code;
+    code = code || instruction::FJUMP(expr.addr, endifLbl);
+    code = code || body;
+    code = code || instruction::LABEL(endifLbl);
+  }
+
   DEBUG_EXIT();
   return code;
 }
@@ -216,25 +226,8 @@ CodeGenVisitor::visitWriteString(AslParser::WriteStringContext *ctx) {
   DEBUG_ENTER();
   instructionList code;
   std::string s = ctx->STRING()->getText();
-  int begin = 1;
-  std::string lit;
-  if (s == "\"\\n\"")
-    code = code || instruction::WRITELN();
-  else
-    FALTA("imprir string que no tinguin \\n per mig");
 
-  // for (int i = 1; i < s.size() - 1; ++i) {
-  //   if (s[i] == 'n' && s[i + 1] == '\\') {
-  //     if (begin != i) {
-  //       lit = "\"" + s.substr(begin, i - 1) + "\"";
-  //       code = code || instruction::WRITES(lit);
-  //       LOG(lit);
-  //     }
-  //     code = code || instruction::WRITELN();
-  //     i++;
-  //     begin = i + 2;
-  //   }
-  // }
+  code = code || instruction::WRITES(s);
 
   DEBUG_EXIT();
   return code;
@@ -245,6 +238,31 @@ antlrcpp::Any CodeGenVisitor::visitLeft_expr(AslParser::Left_exprContext *ctx) {
   CodeAttribs &&codAts = visit(ctx->ident());
   DEBUG_EXIT();
   return codAts;
+}
+
+antlrcpp::Any CodeGenVisitor::visitWhileStmt(AslParser::WhileStmtContext *ctx) {
+  DEBUG_ENTER();
+  CodeAttribs &&expr = visit(ctx->expr());
+  instructionList body = visit(ctx->statements());
+  instructionList code;
+
+  std::string s = codeCounters.newLabelWHILE();
+  std::string ini = "while" + s;
+  std::string endwhile = "endwhile" + s;
+
+  code = code || instruction::LABEL(ini);
+  code = code || expr.code;
+  code = code || instruction::FJUMP(expr.addr, endwhile);
+  code = code || body;
+  code = code || instruction::UJUMP(ini);
+  code = code || instruction::LABEL(endwhile);
+
+  // CodeAttribs codeAts(0, "", code);
+  // DEBUG_EXIT();
+  // return codeAts;
+
+  DEBUG_EXIT();
+  return code;
 }
 
 antlrcpp::Any CodeGenVisitor::visitUnari(AslParser::UnariContext *ctx) {
@@ -266,8 +284,9 @@ antlrcpp::Any CodeGenVisitor::visitUnari(AslParser::UnariContext *ctx) {
   }
 
   codAts.code = code;
+  CodeAttribs codAt(temp, "", code);
   DEBUG_EXIT();
-  return codAts;
+  return codAt;
 }
 
 antlrcpp::Any
@@ -366,19 +385,19 @@ CodeGenVisitor::visitRelational(AslParser::RelationalContext *ctx) {
 
     std::string temp3 = "%" + codeCounters.newTEMP();
     if (ctx->EQUAL()) {
-      code = code || instruction::EQ(temp, temp1, temp2);
+      code = code || instruction::FEQ(temp, temp1, temp2);
     } else if (ctx->NEQUAL()) {
-      code = code || instruction::EQ(temp3, temp1, temp2);
+      code = code || instruction::FEQ(temp3, temp1, temp2);
       code = code || instruction::NOT(temp, temp3);
     } else if (ctx->LESS()) {
-      code = code || instruction::LT(temp, temp1, temp2);
+      code = code || instruction::FLT(temp, temp1, temp2);
     } else if (ctx->LESSEQ()) {
-      code = code || instruction::LE(temp, temp1, temp2);
+      code = code || instruction::FLE(temp, temp1, temp2);
     } else if (ctx->GREAT()) {
-      code = code || instruction::LE(temp3, temp2, temp1);
+      code = code || instruction::FLE(temp3, temp2, temp1);
       code = code || instruction::NOT(temp, temp3);
     } else if (ctx->GREATEQ()) {
-      code = code || instruction::LE(temp3, temp2, temp1);
+      code = code || instruction::FLE(temp3, temp2, temp1);
       code = code || instruction::NOT(temp, temp3);
     }
   } else {
@@ -393,10 +412,10 @@ CodeGenVisitor::visitRelational(AslParser::RelationalContext *ctx) {
     } else if (ctx->LESSEQ()) {
       code = code || instruction::LE(temp, addr1, addr2);
     } else if (ctx->GREAT()) {
-      code = code || instruction::LE(temp3, addr2, addr1);
+      code = code || instruction::LE(temp3, addr1, addr2);
       code = code || instruction::NOT(temp, temp3);
     } else if (ctx->GREATEQ()) {
-      code = code || instruction::LE(temp3, addr2, addr1);
+      code = code || instruction::LT(temp3, addr1, addr2);
       code = code || instruction::NOT(temp, temp3);
     }
   }
@@ -449,8 +468,11 @@ antlrcpp::Any CodeGenVisitor::visitValue(AslParser::ValueContext *ctx) {
     code = instruction::FLOAD(temp, ctx->getText());
   else if (ctx->CHARVAL())
     code = instruction::CHLOAD(temp, ctx->getText());
-  else
-    FALTA("no se com incialitzar var = true");
+  else if (ctx->TRUEVAL())
+    code = instruction::ILOAD(temp, "1");
+  else if (ctx->FALSEVAL())
+    code = instruction::ILOAD(temp, "0");
+  // FALTA("no se com incialitzar var = true");
   CodeAttribs codAts(temp, "", code);
   DEBUG_EXIT();
   return codAts;
