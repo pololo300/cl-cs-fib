@@ -37,6 +37,7 @@
 
 #include <cstddef> // std::size_t
 #include <string>
+#include <vector>
 
 // uncomment the following line to enable debugging messages with DEBUG*
 // #define DEBUG_BUILD
@@ -80,16 +81,52 @@ antlrcpp::Any CodeGenVisitor::visitFunction(AslParser::FunctionContext *ctx) {
   Symbols.pushThisScope(sc);
   subroutine subr(ctx->ID()->getText());
   codeCounters.reset();
+
+  TypesMgr::TypeId function_type =
+      Symbols.getGlobalFunctionType(ctx->ID()->getText());
+
+  TypesMgr::TypeId return_type = Types.getFuncReturnType(function_type);
+  if (not Types.isVoidTy(return_type))
+    subr.add_param("_result", Types.to_string(return_type));
+
+  if (ctx->parameters()) {
+    std::vector<std::pair<std::string, TypesMgr::TypeId>> params =
+        visit(ctx->parameters());
+    for (auto p : params)
+      subr.add_param(p.first, Types.to_string(p.second));
+  }
+
   std::vector<var> &&lvars = visit(ctx->declarations());
   for (auto &onevar : lvars) {
     subr.add_var(onevar);
   }
+
   instructionList &&code = visit(ctx->statements());
   code = code || instruction(instruction::RETURN());
   subr.set_instructions(code);
   Symbols.popScope();
   DEBUG_EXIT();
   return subr;
+}
+
+antlrcpp::Any
+CodeGenVisitor::visitParameters(AslParser::ParametersContext *ctx) {
+  DEBUG_ENTER();
+  std::vector<std::pair<std::string, TypesMgr::TypeId>> params;
+  for (auto p : ctx->parameter())
+    params.push_back(visit(p));
+
+  DEBUG_EXIT();
+  return params;
+}
+antlrcpp::Any CodeGenVisitor::visitParameter(AslParser::ParameterContext *ctx) {
+  DEBUG_ENTER();
+
+  TypesMgr::TypeId t = getTypeDecor(ctx);
+  std::string name = ctx->ID()->getText();
+
+  DEBUG_EXIT();
+  return std::make_pair(name, t);
 }
 
 antlrcpp::Any
@@ -112,7 +149,6 @@ CodeGenVisitor::visitVariable_decl(AslParser::Variable_declContext *ctx) {
   std::size_t size = Types.getSizeOfType(t1);
   DEBUG_EXIT();
   std::vector<var> v;
-  v.push_back(var{"_return", Types.to_string(getTypeDecor(ctx->type())), 1});
   for (int i = 0; i < ctx->ID().size(); ++i)
     v.push_back(var{ctx->ID(i)->getText(), Types.to_string(t1), size});
   return v;
@@ -273,7 +309,7 @@ CodeGenVisitor::visitReturnStmt(AslParser::ReturnStmtContext *ctx) {
   if (ctx->expr()) {
     CodeAttribs &&retCode = visit(ctx->expr());
     code = code || retCode.code;
-    code = code || instruction::LOAD("_return", retCode.addr);
+    code = code || instruction::LOAD("_result", retCode.addr);
   }
   code = code || instruction::RETURN();
   DEBUG_EXIT();
@@ -300,8 +336,8 @@ antlrcpp::Any CodeGenVisitor::visitFun_call(AslParser::Fun_callContext *ctx) {
 
   instructionList code;
   for (int i = 0; i < n_param; ++i) {
-    code = code || paramsCode[1].code;
-    if (Types.isFloatTy(params[1]),
+    code = code || paramsCode[i].code;
+    if (Types.isFloatTy(params[i]) and
         Types.isIntegerTy(getTypeDecor(ctx->expr(i)))) {
       std::string temp = "%" + codeCounters.newTEMP();
       code = code || instruction::FLOAT(temp, paramsCode[i].addr);
