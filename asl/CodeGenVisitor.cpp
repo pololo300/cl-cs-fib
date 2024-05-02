@@ -215,6 +215,12 @@ antlrcpp::Any CodeGenVisitor::visitIfStmt(AslParser::IfStmtContext *ctx) {
   return code;
 }
 
+antlrcpp::Any CodeGenVisitor::visitVoid_call(AslParser::Void_callContext *ctx) {
+  DEBUG_ENTER();
+  CodeAttribs &&codAt = visit(ctx->fun_call());
+  DEBUG_EXIT();
+  return codAt.code;
+}
 antlrcpp::Any CodeGenVisitor::visitProcCall(AslParser::ProcCallContext *ctx) {
   DEBUG_ENTER();
   instructionList code;
@@ -328,6 +334,7 @@ antlrcpp::Any CodeGenVisitor::visitFun_call(AslParser::Fun_callContext *ctx) {
 
   TypesMgr::TypeId tfun =
       Symbols.getGlobalFunctionType(ctx->ident()->getText());
+  TypesMgr::TypeId tret = Types.getFuncReturnType(tfun);
   std::vector<TypesMgr::TypeId> params = Types.getFuncParamsTypes(tfun);
   std::vector<CodeAttribs> paramsCode;
   for (auto c : ctx->expr())
@@ -345,7 +352,9 @@ antlrcpp::Any CodeGenVisitor::visitFun_call(AslParser::Fun_callContext *ctx) {
     }
   }
 
-  code = code || instruction::PUSH();
+  if (not Types.isVoidTy(tret))
+    code = code || instruction::PUSH();
+
   for (int i = 0; i < n_param; ++i) {
     code = code || instruction::PUSH(paramsCode[i].addr);
   }
@@ -354,7 +363,9 @@ antlrcpp::Any CodeGenVisitor::visitFun_call(AslParser::Fun_callContext *ctx) {
   for (int i = 0; i < n_param; ++i)
     code = code || instruction::POP();
   std::string ret = "%" + codeCounters.newTEMP();
-  code = code || instruction::POP(ret);
+
+  if (not Types.isVoidTy(tret))
+    code = code || instruction::POP(ret);
 
   CodeAttribs CodeAtr(ret, "", code);
   DEBUG_EXIT();
@@ -465,19 +476,21 @@ CodeGenVisitor::visitRelational(AslParser::RelationalContext *ctx) {
   TypesMgr::TypeId t = getTypeDecor(ctx);
 
   std::string temp = "%" + codeCounters.newTEMP();
+  std::string temp1;
+  std::string temp2;
 
-  if (Types.isFloatTy(t)) {
-    std::string temp1;
-    if (not Types.isFloatTy(t1)) {
+  if (Types.isFloatTy(t1) or Types.isFloatTy(t2)) {
+    if (Types.isIntegerTy(t1)) {
       temp1 = "%" + codeCounters.newTEMP();
-      code.push_back(instruction::FLOAT(temp1, addr1));
-    }
+      code = code || instruction::FLOAT(temp1, addr1);
+    } else
+      temp1 = addr1;
 
-    std::string temp2;
-    if (not Types.isFloatTy(t2)) {
+    if (Types.isIntegerTy(t2)) {
       temp2 = "%" + codeCounters.newTEMP();
-      code.push_back(instruction::FLOAT(temp2, addr2));
-    }
+      code = code || instruction::FLOAT(temp2, addr2);
+    } else
+      temp2 = addr2;
 
     std::string temp3 = "%" + codeCounters.newTEMP();
     if (ctx->EQUAL()) {
