@@ -137,6 +137,7 @@ CodeGenVisitor::visitDeclarations(AslParser::DeclarationsContext *ctx) {
     std::vector<var> vars = visit(varDeclCtx);
     for (auto v : vars)
       lvars.push_back(v);
+    LOG(varDeclCtx->getText())
   }
   DEBUG_EXIT();
   return lvars;
@@ -170,16 +171,19 @@ antlrcpp::Any
 CodeGenVisitor::visitAssignStmt(AslParser::AssignStmtContext *ctx) {
   DEBUG_ENTER();
   instructionList code;
+
   CodeAttribs &&codAtsE1 = visit(ctx->left_expr());
   std::string addr1 = codAtsE1.addr;
-  // std::string           offs1 = codAtsE1.offs;
+  std::string offs1 = codAtsE1.offs;
   instructionList &code1 = codAtsE1.code;
-  // TypesMgr::TypeId tid1 = getTypeDecor(ctx->left_expr());
+  TypesMgr::TypeId tid1 = getTypeDecor(ctx->left_expr());
+
   CodeAttribs codAtsE2 = visit(ctx->expr());
   std::string addr2 = codAtsE2.addr;
-  // std::string           offs2 = codAtsE2.offs;
+  std::string offs2 = codAtsE2.offs;
   instructionList &code2 = codAtsE2.code;
-  // TypesMgr::TypeId tid2 = getTypeDecor(ctx->expr());
+  TypesMgr::TypeId tid2 = getTypeDecor(ctx->expr());
+
   code = code1 || code2 || instruction::LOAD(addr1, addr2);
   DEBUG_EXIT();
   return code;
@@ -278,7 +282,11 @@ CodeGenVisitor::visitWriteString(AslParser::WriteStringContext *ctx) {
 
 antlrcpp::Any CodeGenVisitor::visitLeft_expr(AslParser::Left_exprContext *ctx) {
   DEBUG_ENTER();
-  CodeAttribs &&codAts = visit(ctx->ident());
+  if (ctx->ident())
+    CodeAttribs &&codAts = visit(ctx->ident());
+  else
+    (ctx->accesor()) CodeAttribs &&codAts = visit(ctx->ident());
+
   DEBUG_EXIT();
   return codAts;
 }
@@ -599,6 +607,21 @@ antlrcpp::Any CodeGenVisitor::visitIdent(AslParser::IdentContext *ctx) {
   CodeAttribs codAts(ctx->ID()->getText(), "", instructionList());
   DEBUG_EXIT();
   return codAts;
+}
+
+antlrcpp::Any CodeGenVisitor::visitAccesor(AslParser::AccesorContext *ctx) {
+  DEBUG_ENTER();
+
+  CodeAttribs &&identCode = visit(ctx->ident());
+  CodeAttribs &&indxCode = visit(ctx->expr());
+
+  std::string temp = "%" + codeCounters.newTEMP();
+
+  instructionList code;
+  code = code || indxCode.code;
+
+  DEBUG_EXIT();
+  return CodeAttribs(identCode.addr, indxCode.addr, indxCode.code);
 }
 
 // Getters for the necessary tree node atributes:
