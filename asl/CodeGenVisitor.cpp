@@ -93,7 +93,12 @@ antlrcpp::Any CodeGenVisitor::visitFunction(AslParser::FunctionContext *ctx) {
     std::vector<std::pair<std::string, TypesMgr::TypeId>> params =
         visit(ctx->parameters());
     for (auto p : params) {
-      subr.add_param(p.first, Types.to_string(p.second));
+      if (Types.isArrayTy(p.second))
+        subr.add_param(p.first,
+                       Types.to_string(Types.getArrayElemType(p.second)) +
+                           " array");
+      else
+        subr.add_param(p.first, Types.to_string(p.second));
     }
   }
 
@@ -439,6 +444,10 @@ antlrcpp::Any CodeGenVisitor::visitFun_call(AslParser::Fun_callContext *ctx) {
       std::string temp = "%" + codeCounters.newTEMP();
       code = code || instruction::FLOAT(temp, paramsCode[i].addr);
       paramsCode[i].addr = temp;
+    } else if (Types.isArrayTy(params[i])) {
+      std::string temp = "%" + codeCounters.newTEMP();
+      code = code || instruction::ALOAD(temp, paramsCode[i].addr);
+      paramsCode[i].addr = temp;
     }
   }
 
@@ -700,6 +709,9 @@ antlrcpp::Any CodeGenVisitor::visitAccesor(AslParser::AccesorContext *ctx) {
 
   instructionList code;
   code = code || indxCode.code;
+
+  // std::string temp2 = "%" + codeCounters.newTEMP();
+  // code = code || instruction::LOAD(temp2, identCode.addr);
 
   CodeAttribs CodeAtr(identCode.addr, indxCode.addr, code);
   DEBUG_EXIT();
