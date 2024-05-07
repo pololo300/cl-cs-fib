@@ -82,6 +82,7 @@ public:
   antlrcpp::Any visitLeft_expr(AslParser::Left_exprContext *ctx);
   antlrcpp::Any visitReturnStmt(AslParser::ReturnStmtContext *ctx);
 
+  antlrcpp::Any visitArray(AslParser::ArrayContext *ctx);
   antlrcpp::Any visitFunCall(AslParser::FunCallContext *ctx);
   antlrcpp::Any visitFun_call(AslParser::Fun_callContext *ctx);
   antlrcpp::Any visitUnari(AslParser::UnariContext *ctx);
@@ -93,6 +94,7 @@ public:
   antlrcpp::Any visitExprIdent(AslParser::ExprIdentContext *ctx);
 
   antlrcpp::Any visitIdent(AslParser::IdentContext *ctx);
+  antlrcpp::Any visitAccesor(AslParser::AccesorContext *ctx);
 
 private:
   // Attributes
