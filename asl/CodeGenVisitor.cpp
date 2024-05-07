@@ -251,10 +251,6 @@ antlrcpp::Any CodeGenVisitor::visitVoid_call(AslParser::Void_callContext *ctx) {
 antlrcpp::Any CodeGenVisitor::visitProcCall(AslParser::ProcCallContext *ctx) {
   DEBUG_ENTER();
 
-  LOG("-->")
-  LOG("-->")
-  LOG("-->")
-  LOG("-->")
   instructionList code;
   std::string name = ctx->ident()->getText();
   code = instruction::CALL(name);
@@ -332,7 +328,7 @@ CodeGenVisitor::visitWriteString(AslParser::WriteStringContext *ctx) {
 
   std::string subs;
 
-  for (int i = 1; i < s.size() - 1; ++i) {
+  for (int i = 1; i < s.size(); ++i) {
     if (s[i] == '\\' and s[1 + i] == 'n') {
       if (subs.size() > 0)
         code = code || instruction::WRITES("\"" + subs + "\"");
