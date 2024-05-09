@@ -316,9 +316,9 @@ antlrcpp::Any CodeGenVisitor::visitWriteExpr(AslParser::WriteExprContext *ctx) {
     code = code1 || instruction::WRITEI(addr1);
   else if (Types.isFloatTy(tid1))
     code = code1 || instruction::WRITEF(addr1);
-  else if (Types.isCharacterTy(tid1))
+  else if (Types.isCharacterTy(tid1)) {
     code = code1 || instruction::WRITEC(addr1);
-  else if (Types.isBooleanTy(tid1))
+  } else if (Types.isBooleanTy(tid1))
     code = code1 || instruction::WRITEI(addr1);
   DEBUG_EXIT();
   return code;
@@ -548,8 +548,15 @@ CodeGenVisitor::visitArithmetic(AslParser::ArithmeticContext *ctx) {
       code = code || instruction::DIV(temp, addr1, addr2);
     else if (ctx->MINUS())
       code = code || instruction::SUB(temp, addr1, addr2);
-    else if (ctx->MOD())
-      FALTA("falta calcular residu divisio entera (%)");
+    else if (ctx->MOD()) { // a % b = a - (a/b) * b
+      std::string temp3 = "%" + codeCounters.newTEMP();
+      code = code || instruction::DIV(temp3, addr1, addr2); // 3 = a/b
+      std::string temp4 = "%" + codeCounters.newTEMP();
+      code = code || instruction::MUL(temp4, temp3, addr2); // 4 = (a/b)*b
+      std::string temp5 = "%" + codeCounters.newTEMP();
+      code = code || instruction::NEG(temp5, temp4);       // 5 = -(a/b)*b
+      code = code || instruction::ADD(temp, addr1, temp5); // temp = a -(a/b)*b
+    }
   }
   CodeAttribs codAts(temp, "", code);
   DEBUG_EXIT();
@@ -674,9 +681,15 @@ antlrcpp::Any CodeGenVisitor::visitValue(AslParser::ValueContext *ctx) {
     code = instruction::ILOAD(temp, ctx->getText());
   else if (ctx->FLOATVAL())
     code = instruction::FLOAD(temp, ctx->getText());
-  else if (ctx->CHARVAL())
-    code = instruction::CHLOAD(temp, ctx->getText());
-  else if (ctx->TRUEVAL())
+  else if (ctx->CHARVAL()) {
+    std::string s = ctx->getText();
+    std::string c;
+    if (s[1] == '\\')
+      c = (s[2] == 'n') ? ("\\n") : ("\\t");
+    else
+      c = s[1];
+    code = instruction::CHLOAD(temp, c);
+  } else if (ctx->TRUEVAL())
     code = instruction::ILOAD(temp, "1");
   else if (ctx->FALSEVAL())
     code = instruction::ILOAD(temp, "0");
@@ -710,10 +723,17 @@ antlrcpp::Any CodeGenVisitor::visitAccesor(AslParser::AccesorContext *ctx) {
   instructionList code;
   code = code || indxCode.code;
 
-  // std::string temp2 = "%" + codeCounters.newTEMP();
-  // code = code || instruction::LOAD(temp2, identCode.addr);
+  CodeAttribs CodeAtr("", "", instructionList());
+  std::string var = identCode.addr;
+  if (Symbols.isParameterClass(var)) {
+    std::string temp2 = "%" + codeCounters.newTEMP();
+    code = code || instruction::LOAD(temp2, identCode.addr);
+    CodeAtr = CodeAttribs(temp2, indxCode.addr, code);
+  } else {
+    CodeAtr = CodeAttribs(identCode.addr, indxCode.addr, code);
+  }
 
-  CodeAttribs CodeAtr(identCode.addr, indxCode.addr, code);
+  // CodeAttribs CodeAtr(identCode.addr, indxCode.addr, code);
   DEBUG_EXIT();
   return CodeAtr;
 }

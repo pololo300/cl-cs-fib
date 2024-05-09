@@ -133,7 +133,7 @@ antlrcpp::Any SymbolsVisitor::visitParameter(AslParser::ParameterContext *ctx) {
   if (Symbols.findInCurrentScope(ident)) {
     Errors.declaredIdent(ctx->ID());
   } else {
-    Symbols.addLocalVar(ident, t);
+    Symbols.addParameter(ident, t);
     putTypeDecor(ctx, t);
   }
 
