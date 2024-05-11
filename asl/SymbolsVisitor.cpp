@@ -80,6 +80,7 @@ antlrcpp::Any SymbolsVisitor::visitFunction(AslParser::FunctionContext *ctx) {
 
   // declarations
   visit(ctx->declarations());
+  // Symbols.addParameter("__idex__aux__", Types.createIntegerTy());
 
   // Symbols.print();
   Symbols.popScope();

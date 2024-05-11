@@ -84,6 +84,7 @@ antlrcpp::Any CodeGenVisitor::visitFunction(AslParser::FunctionContext *ctx) {
 
   TypesMgr::TypeId function_type =
       Symbols.getGlobalFunctionType(ctx->ID()->getText());
+  setCurrentFunctionTy(function_type);
 
   TypesMgr::TypeId return_type = Types.getFuncReturnType(function_type);
   if (not Types.isVoidTy(return_type))
@@ -106,6 +107,9 @@ antlrcpp::Any CodeGenVisitor::visitFunction(AslParser::FunctionContext *ctx) {
   for (auto &onevar : lvars) {
     subr.add_var(onevar);
   }
+
+  Symbols.addLocalVar("__idex__aux__", Types.createIntegerTy());
+  subr.add_var(var{"__idex__aux__", "integer", 1});
 
   instructionList &&code = visit(ctx->statements());
   code = code || instruction(instruction::RETURN());
@@ -202,10 +206,42 @@ CodeGenVisitor::visitAssignStmt(AslParser::AssignStmtContext *ctx) {
     code = code || instruction::FLOAT(addr, addr2);
   }
 
-  if (offs1 == "" and offs2 == "") { // cap dels dos es array acces
+  if (offs1 == "" and offs2 == "" and
+      not Types.isArrayTy(tid1)) { // cap dels dos es array acces ni array
     code = code || instruction::LOAD(addr1, addr);
   } else if (offs1 != "" and offs2 == "") { // array acces a la esquerra
     code = code || instruction::XLOAD(addr1, offs1, addr2);
+  }
+
+  if (Types.isArrayTy(tid1) and Types.isArrayTy(tid2)) {
+
+    std::string size = "%" + codeCounters.newTEMP();
+    code = code ||
+           instruction::ILOAD(size, std::to_string(Types.getArraySize(tid1)));
+    code = code || instruction::ILOAD("__idex__aux__", "0");
+    std::string one = "%" + codeCounters.newTEMP();
+    code = code || instruction::ILOAD(one, "1");
+
+    // while tags
+    std::string wl = codeCounters.newTEMP();
+    std::string winit = "whileArrayAs" + wl;
+    std::string wend = "endwhilearrayAs" + wl;
+    code = code || instruction::LABEL(winit);
+
+    std::string cond = "%" + codeCounters.newTEMP();
+    code = code || instruction::EQ(cond, "__idex__aux__", size);
+    std::string neg_cond = "%" + codeCounters.newTEMP();
+    code = code || instruction::NOT(neg_cond, cond);
+    code = code || instruction::FJUMP(neg_cond, wend);
+
+    std::string value = "%" + codeCounters.newTEMP();
+    code = code || instruction::LOADX(value, addr2, "__idex__aux__");
+    code = code || instruction::XLOAD(addr1, "__idex__aux__", value);
+
+    code = code || instruction::ADD("__idex__aux__", "__idex__aux__", one);
+
+    code = code || instruction::UJUMP(winit);
+    code = code || instruction::LABEL(wend);
   }
   DEBUG_EXIT();
   return code;
@@ -393,11 +429,33 @@ antlrcpp::Any CodeGenVisitor::visitWhileStmt(AslParser::WhileStmtContext *ctx) {
 antlrcpp::Any
 CodeGenVisitor::visitReturnStmt(AslParser::ReturnStmtContext *ctx) {
   DEBUG_ENTER();
+  // instructionList code;
+  // if (ctx->expr()) {
+  //   CodeAttribs &&retCode = visit(ctx->expr());
+  //   code = code || retCode.code;
+  //   code = code || instruction::LOAD("_result", retCode.addr);
+  // }
+  // code = code || instruction::RETURN();
+
   instructionList code;
   if (ctx->expr()) {
+    ;
     CodeAttribs &&retCode = visit(ctx->expr());
-    code = code || retCode.code;
-    code = code || instruction::LOAD("_result", retCode.addr);
+    TypesMgr::TypeId tfun = getCurrentFunctionTy();
+    TypesMgr::TypeId tret = Types.getFuncReturnType(tfun);
+    TypesMgr::TypeId t = getTypeDecor(ctx->expr());
+
+    code = retCode.code;
+
+    std::string addr = retCode.addr;
+
+    if (Types.isFloatTy(tret) and Types.isIntegerTy(t)) {
+      std::string temp = "%" + codeCounters.newTEMP();
+      code = code || instruction::FLOAT(temp, addr);
+      addr = temp;
+    }
+
+    code = code || instruction::LOAD("_result", addr);
   }
   code = code || instruction::RETURN();
   DEBUG_EXIT();
@@ -487,6 +545,8 @@ antlrcpp::Any CodeGenVisitor::visitUnari(AslParser::UnariContext *ctx) {
       code = code || instruction::FNEG(temp, addr);
     else if (Types.isIntegerTy(t))
       code = code || instruction::NEG(temp, addr);
+  } else if (ctx->PLUS()) {
+    temp = addr;
   }
 
   codAts.code = code;

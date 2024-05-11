@@ -39,7 +39,7 @@ echo "======================================================="
 echo "=== BEGIN examples/jpbasic_chkt typecheck ============="
 for f in ../examples/jpbasic_chkt_*.asl; do
     echo -n "****" $(basename "$f") "...." 
-    ./asl "$f" 2>&1 | egrep ^L >tmp.err
+    ./asl "$f" 2>&1 | grep -E ^L >tmp.err
     check_chkt_example "${f/asl/err}" tmp.err 
     rm -f tmp.err
 done
