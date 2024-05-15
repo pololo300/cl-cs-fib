@@ -94,11 +94,11 @@ antlrcpp::Any CodeGenVisitor::visitFunction(AslParser::FunctionContext *ctx) {
     std::vector<std::pair<std::string, TypesMgr::TypeId>> params =
         visit(ctx->parameters());
     for (auto p : params) {
-      if (Types.isArrayTy(p.second))
+      if (Types.isArrayTy(p.second)) {
         subr.add_param(p.first,
                        Types.to_string(Types.getArrayElemType(p.second)) +
                            " array");
-      else
+      } else
         subr.add_param(p.first, Types.to_string(p.second));
     }
   }
@@ -214,6 +214,18 @@ CodeGenVisitor::visitAssignStmt(AslParser::AssignStmtContext *ctx) {
   }
 
   if (Types.isArrayTy(tid1) and Types.isArrayTy(tid2)) {
+
+    if (Symbols.isParameterClass(addr1)) {
+      std::string addr1_temp = "%" + codeCounters.newTEMP();
+      code = code || instruction::LOAD(addr1_temp, addr1);
+      addr1 = addr1_temp;
+    }
+
+    if (Symbols.isParameterClass(addr2)) {
+      std::string addr2_temp = "%" + codeCounters.newTEMP();
+      code = code || instruction::LOAD(addr2_temp, addr2);
+      addr2 = addr2_temp;
+    }
 
     std::string size = "%" + codeCounters.newTEMP();
     code = code ||
