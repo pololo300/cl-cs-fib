@@ -515,9 +515,13 @@ antlrcpp::Any CodeGenVisitor::visitFun_call(AslParser::Fun_callContext *ctx) {
       code = code || instruction::FLOAT(temp, paramsCode[i].addr);
       paramsCode[i].addr = temp;
     } else if (Types.isArrayTy(params[i])) {
-      std::string temp = "%" + codeCounters.newTEMP();
-      code = code || instruction::ALOAD(temp, paramsCode[i].addr);
-      paramsCode[i].addr = temp;
+      if (Symbols.isParameterClass(paramsCode[i].addr)) {
+
+      } else {
+        std::string temp = "%" + codeCounters.newTEMP();
+        code = code || instruction::ALOAD(temp, paramsCode[i].addr);
+        paramsCode[i].addr = temp;
+      }
     }
   }
 
