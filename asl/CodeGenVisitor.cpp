@@ -814,6 +814,67 @@ antlrcpp::Any CodeGenVisitor::visitAccesor(AslParser::AccesorContext *ctx) {
   return CodeAtr;
 }
 
+instructionList CodeGenVisitor::ifCode(instructionList &conditionCode,
+                                       const std::string &evaluationAddress,
+                                       instructionList &thenCode) {
+  const std::string label = codeCounters.newLabelIF();
+  return conditionCode ||
+         instruction::FJUMP(evaluationAddress, "endif" + label) || thenCode ||
+         instruction::LABEL("endif" + label);
+}
+
+instructionList CodeGenVisitor::ifCode(instructionList &conditionCode,
+                                       const std::string &evaluationAddress,
+                                       instructionList &thenCode,
+                                       instructionList &elseCode) {
+  const std::string label = codeCounters.newLabelIF();
+  return conditionCode ||
+         instruction::FJUMP(evaluationAddress, "else" + label) || thenCode ||
+         instruction::UJUMP("endif" + label) ||
+         instruction::LABEL("else" + label) || elseCode ||
+         instruction::LABEL("endif" + label);
+}
+
+instructionList CodeGenVisitor::whileCode(instructionList &conditionCode,
+                                          const std::string &evaluationAddress,
+                                          instructionList &doCode) {
+  const std::string label = codeCounters.newLabelWHILE();
+  return instruction::LABEL("while" + label) || conditionCode ||
+         instruction::FJUMP(evaluationAddress, "endwhile" + label) || doCode ||
+         instruction::UJUMP("while" + label) ||
+         instruction::LABEL("endwhile" + label);
+}
+
+instructionList CodeGenVisitor::forCode(const std::string &counterAddress,
+                                        instructionList &doCode,
+                                        const std::string &startAddress,
+                                        const std::string &stopAddress,
+                                        const std::string &stepAddress) {
+  const std::string evaluationAddress = "%" + codeCounters.newTEMP();
+
+  instructionList conditionCode =
+      instruction::LT(evaluationAddress, counterAddress, stopAddress);
+  instructionList whileDoCode =
+      doCode || instruction::ADD(counterAddress, counterAddress, stepAddress);
+
+  return instruction::LOAD(counterAddress, startAddress) ||
+         whileCode(conditionCode, evaluationAddress, whileDoCode);
+}
+
+instructionList CodeGenVisitor::forCode(const std::string &counterAddress,
+                                        instructionList &doCode,
+                                        unsigned int start, unsigned int stop,
+                                        unsigned int step) {
+  const std::string startAddress = "%" + codeCounters.newTEMP();
+  const std::string stopAddress = "%" + codeCounters.newTEMP();
+  const std::string stepAddress = "%" + codeCounters.newTEMP();
+  return instruction::ILOAD(startAddress, std::to_string(start)) ||
+         instruction::ILOAD(stopAddress, std::to_string(stop)) ||
+         instruction::ILOAD(stepAddress, std::to_string(step)) ||
+         forCode(counterAddress, doCode, startAddress, stopAddress,
+                 stepAddress);
+}
+
 // Getters for the necessary tree node atributes:
 //   Scope and Type
 SymTable::ScopeId

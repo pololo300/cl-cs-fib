@@ -97,6 +97,29 @@ public:
   antlrcpp::Any visitAccesor(AslParser::AccesorContext *ctx);
 
 private:
+  // auxiliary functions
+  instructionList forCode(const std::string &counterAddress,
+                          instructionList &doCode, unsigned int start,
+                          unsigned int stop, unsigned int step);
+
+  instructionList forCode(const std::string &counterAddress,
+                          instructionList &bodyCode,
+                          const std::string &startAddress,
+                          const std::string &stopAddress,
+                          const std::string &stepAddress);
+
+  instructionList whileCode(instructionList &conditionCode,
+                            const std::string &evaluationAddress,
+                            instructionList &doCode);
+
+  instructionList ifCode(instructionList &conditionCode,
+                         const std::string &evaluationAddress,
+                         instructionList &thenCode);
+
+  instructionList ifCode(instructionList &conditionCode,
+                         const std::string &evaluationAddress,
+                         instructionList &doCode, instructionList &elseCode);
+
   // Attributes
   TypesMgr &Types;
   SymTable &Symbols;
