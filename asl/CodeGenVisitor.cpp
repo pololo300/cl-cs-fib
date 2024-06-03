@@ -845,6 +845,69 @@ instructionList CodeGenVisitor::whileCode(instructionList &conditionCode,
          instruction::LABEL("endwhile" + label);
 }
 
+std::string CodeGenVisitor::coerce(instructionList &code,
+                                   TypesMgr::TypeId destinationType,
+                                   TypesMgr::TypeId sourceType,
+                                   const std::string &sourceAddress) {
+  if (Types.isFloatTy(destinationType) and Types.isIntegerTy(sourceType)) {
+    const std::string address = "%" + codeCounters.newTEMP();
+    code = code || instruction::FLOAT(address, sourceAddress);
+    return address;
+  } else {
+    return sourceAddress;
+  }
+}
+
+std::string CodeGenVisitor::reference(instructionList &code,
+                                      const std::string &name) {
+  TypesMgr::TypeId type = Symbols.getType(name);
+  if (Symbols.isLocalVarClass(name) and Types.isArrayTy(type)) {
+    const std::string address = "%" + codeCounters.newTEMP();
+    code = code || instruction::ALOAD(address, name);
+    return address;
+  } else {
+    return name;
+  }
+}
+
+std::string CodeGenVisitor::call(instructionList &code,
+                                 const std::string &functionName,
+                                 std::vector<TypesMgr::TypeId> argumentTypes,
+                                 std::vector<std::string> argumentAddresses) {
+  TypesMgr::TypeId functionType = Symbols.getType(functionName);
+  TypesMgr::TypeId returnType = Types.getFuncReturnType(functionType);
+  std::size_t parameterCount = Types.getNumOfParameters(functionType);
+  bool isNonVoid = Types.isPrimitiveNonVoidTy(returnType);
+  std::string address;
+
+  if (isNonVoid) {
+    address = "%" + codeCounters.newTEMP();
+    code = code || instruction::PUSH();
+  }
+
+  for (std::size_t i = 0; i < parameterCount; i++) {
+    TypesMgr::TypeId parameterType = Types.getParameterType(functionType, i);
+    TypesMgr::TypeId argumentType = argumentTypes[i];
+    const std::string &argumentAddress = argumentAddresses[i];
+    std::string address = argumentAddress;
+    address = coerce(code, parameterType, argumentType, address);
+    address = reference(code, address);
+    code = code || instruction::PUSH(address);
+  }
+
+  code = code || instruction::CALL(functionName);
+
+  for (std::size_t i = 0; i < parameterCount; i++) {
+    code = code || instruction::POP();
+  }
+
+  if (isNonVoid) {
+    code = code || instruction::POP(address);
+  }
+
+  return address;
+}
+
 instructionList CodeGenVisitor::forCode(const std::string &counterAddress,
                                         instructionList &doCode,
                                         const std::string &startAddress,

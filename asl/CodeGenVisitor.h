@@ -98,6 +98,16 @@ public:
 
 private:
   // auxiliary functions
+  std::string call(instructionList &code, const std::string &functionName,
+                   std::vector<TypesMgr::TypeId> argumentTypes,
+                   std::vector<std::string> argumentAddresses);
+
+  std::string coerce(instructionList &code, TypesMgr::TypeId destinationType,
+                     TypesMgr::TypeId sourceType,
+                     const std::string &sourceAddress);
+
+  std::string reference(instructionList &code, const std::string &name);
+
   instructionList forCode(const std::string &counterAddress,
                           instructionList &doCode, unsigned int start,
                           unsigned int stop, unsigned int step);
